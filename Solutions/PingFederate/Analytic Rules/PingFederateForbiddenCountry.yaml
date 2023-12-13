@@ -3,8 +3,12 @@ name: Ping Federate - Forbidden country
 description: |
   'Detects requests from forbidden countries.'
 severity: High
+status: Available
 requiredDataConnectors:
   - connectorId: PingFederate
+    dataTypes:
+      - PingFederateEvent
+  - connectorId: PingFederateAma
     dataTypes:
       - PingFederateEvent
 queryFrequency: 1h
@@ -19,7 +23,7 @@ query: |
   let forbidden_geo = dynamic(['CH']);
   PingFederateEvent
   | where isnotempty(DstGeoCountry)
-  | where DstGeoCountry in~ (forbidden_geo)
+  | where tostring(DstGeoCountry) in~ (forbidden_geo)
   | extend AccountCustomEntity = DstUserName
   | extend IpCustomEntity = SrcIpAddr
 entityMappings:
@@ -31,3 +35,5 @@ entityMappings:
     fieldMappings:
       - identifier: Address
         columnName: IpCustomEntity
+version: 1.0.1
+kind: Scheduled

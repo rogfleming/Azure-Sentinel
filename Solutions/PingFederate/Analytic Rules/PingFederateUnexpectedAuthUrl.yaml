@@ -3,8 +3,12 @@ name: Ping Federate - Unexpected authentication URL.
 description: |
   'Detects unexpected authentication URL.'
 severity: Medium
+status: Available
 requiredDataConnectors:
   - connectorId: PingFederate
+    dataTypes:
+      - PingFederateEvent
+  - connectorId: PingFederateAma
     dataTypes:
       - PingFederateEvent
 queryFrequency: 1h
@@ -39,3 +43,5 @@ entityMappings:
     fieldMappings:
       - identifier: Address
         columnName: IpCustomEntity
+version: 1.0.1
+kind: Scheduled

@@ -38,7 +38,7 @@
                 "displayName": "[parameters('UserName')]",
                 "customParameterValues": {},
                 "api": {
-                    "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/microsoftgraphsecurity')]"
+                    "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/azureloganalyticsdatacollector')]"
                 }
             }
         },
@@ -47,9 +47,13 @@
             "apiVersion": "2017-07-01",
             "name": "[parameters('PlaybookName')]",
             "location": "[resourceGroup().location]",
+                        "dependsOn":  [
+                "[resourceId('Microsoft.Web/connections', variables('AzureLogAnalyticsDataCollectorConnectionName'))]",
+                "[resourceId('Microsoft.Web/connections', variables('azuremonitorlogsConnectionName'))]"
+            ],
             "properties": {
                 "state": "Disabled",
-                "definition": {
+                "definition":  {
                     "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
                     "actions": {
                         "Condition": {
@@ -75,7 +79,7 @@
                                             "method": "GET",
                                             "queries": {
                                                 "collection": "@parameters('Collection Name')",
-                                                "date": "@{addDays(utcNow(), -3, 'yyyy-MM-dd')}"
+                                                "date": "@{addDays(utcNow(), -1, 'yyyy-MM-dd')}"
                                             },
                                             "uri": "@{parameters('GIB API URL ')}sequence_list"
                                         },
@@ -171,10 +175,10 @@
                                 "method": "post",
                                 "path": "/queryData",
                                 "queries": {
-                                    "resourcegroups": "Group-IB-WS",
-                                    "resourcename": "Group-IB",
-                                    "resourcetype": "Log Analytics Workspace",
-                                    "subscriptions": "6a021fde-5198-441e-9190-9d634e1f4a84",
+                                    "subscriptions": "[subscription().subscriptionId]",
+									"resourcegroups": "[resourceGroup().name]",
+									"resourcetype": "Log Analytics Workspace",
+									"resourcename": "",
                                     "timerange": "Last 7 days"
                                 }
                             },
@@ -191,7 +195,7 @@
                                     {
                                         "name": "GIB API Key",
                                         "type": "string",
-                                        "value": "XXXXXXXX"
+                                        "value": "<GIB API Key>"
                                     }
                                 ]
                             },
@@ -233,7 +237,7 @@
                         },
                         "Initialize_table": {
                             "inputs": {
-                                "body": "{\"collection_name\" : \"test/collection\",\n \"seq_Update\": 0\n}",
+                                "body": "{\"collection_name\" : \"@{parameters('Collection Name')}\",\n \"seq_Update\": 0\n}",
                                 "headers": {
                                     "Log-Type": "GIBTechTable"
                                 },
@@ -744,36 +748,36 @@
                                 },
                                 "IfPortionHasItems": {
                                     "actions": {
-                                        "Empty_Threat_Indicators_List": {
-                                            "inputs": {
-                                                "name": "ThreatIndicators",
-                                                "value": []
-                                            },
-                                            "runAfter": {
-                                                "GIBIndicatorProcessor": [
-                                                    "Succeeded"
-                                                ]
-                                            },
-                                            "type": "SetVariable"
-                                        },
                                         "For_each": {
                                             "actions": {
                                                 "For_each_2": {
                                                     "actions": {
                                                         "Is_network_indicator": {
                                                             "actions": {
+                                                                "Empty_Threat_Indicators_List": {
+                                                                    "inputs": {
+                                                                        "name": "ThreatIndicators",
+                                                                        "value": []
+                                                                    },
+                                                                    "runAfter": {
+                                                                        "GIBIndicatorProcessor": [
+                                                                            "Succeeded"
+                                                                        ]
+                                                                    },
+                                                                    "type": "SetVariable"
+                                                                },
                                                                 "For_each_3": {
                                                                     "actions": {
                                                                         "Append_Network_Indicator_to_Indicators_List": {
                                                                             "inputs": {
                                                                                 "name": "ThreatIndicators",
                                                                                 "value": {
-                                                                                    "action": "unknown",
+                                                                                    "action": "@parameters('GIB APT Threat Indicator IP Action')",
                                                                                     "activityGroupNames": [
                                                                                         "@items('For_each')?['threatActor']?['name']"
                                                                                     ],
-                                                                                    "confidence": "@items('For_each')?['evaluation']?['credibility']",
-                                                                                    "description": "Group-IB APT Threat Indicator",
+                                                                                    "confidence": "@int(items('For_each')?['evaluation']?['credibility'])",
+                                                                                    "description": "GIB APT Threat Indicator",
                                                                                     "expirationDateTime": "@addDays(items('For_each')?['createdAt'], 100)",
                                                                                     "killChain": [],
                                                                                     "malwareFamilyNames": [],
@@ -795,18 +799,36 @@
                                                                     "runAfter": {},
                                                                     "type": "Foreach"
                                                                 },
+                                                                "GIBIndicatorProcessor": {
+                                                                    "inputs": {
+                                                                        "batchName": "GIBIndicatorsBatch",
+                                                                        "content": "@variables('ThreatIndicators')",
+                                                                        "host": {
+                                                                            "triggerName": "Batch_messages",
+                                                                            "workflow": {
+                                                                                "id": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Logic/workflows/', 'GIBIndicatorProcessor')]"
+                                                                            }
+                                                                        }
+                                                                    },
+                                                                    "runAfter": {
+                                                                        "If_indicator_contains_URL": [
+                                                                            "Succeeded"
+                                                                        ]
+                                                                    },
+                                                                    "type": "SendToBatch"
+                                                                },
                                                                 "If_Indicator_contains_Domain": {
                                                                     "actions": {
                                                                         "Add_domain_to_Indicators": {
                                                                             "inputs": {
                                                                                 "name": "ThreatIndicators",
                                                                                 "value": {
-                                                                                    "action": "unknown",
+                                                                                    "action": "@parameters('Group-IB APT Threat Indicator Domain Action')",
                                                                                     "activityGroupNames": [
                                                                                         "@items('For_each')?['threatActor']?['name']"
                                                                                     ],
-                                                                                    "confidence": "@items('For_each')?['evaluation']?['credibility']",
-                                                                                    "description": "Group-IB APT Threat Indicator",
+                                                                                    "confidence": "@int(items('For_each')?['evaluation']?['credibility'])",
+                                                                                    "description": "GIB APT Threat Indicator",
                                                                                     "domainName": "@items('For_each_2')['params']['domain']",
                                                                                     "expirationDateTime": "@addDays(items('For_each')?['createdAt'], 100)",
                                                                                     "killChain": [],
@@ -838,7 +860,7 @@
                                                                                 "not": {
                                                                                     "equals": [
                                                                                         "@length(items('For_each_2')?['params']?['domain'])",
-                                                                                        0
+                                                                                        "@0"
                                                                                     ]
                                                                                 }
                                                                             }
@@ -857,11 +879,11 @@
                                                                             "inputs": {
                                                                                 "name": "ThreatIndicators",
                                                                                 "value": {
-                                                                                    "action": "unknown",
+                                                                                    "action": "@parameters('Group-IB APT Threat Indicator URL Action')",
                                                                                     "activityGroupNames": [
                                                                                         "@items('For_each')?['threatActor']?['name']"
                                                                                     ],
-                                                                                    "confidence": "@items('For_each')?['evaluation']?['credibility']",
+                                                                                    "confidence": "@int(items('For_each')?['evaluation']?['credibility'])",
                                                                                     "description": "Group-IB APT Threat Indicator",
                                                                                     "expirationDateTime": "@addDays(items('For_each')?['createdAt'], 100)",
                                                                                     "killChain": [],
@@ -893,8 +915,8 @@
                                                                             {
                                                                                 "not": {
                                                                                     "equals": [
-                                                                                        "@length(items('For_each_2')?['params']?['domain'])",
-                                                                                        0
+                                                                                        "@length(items('For_each_2')?['params']?['url'])",
+                                                                                        "@0"
                                                                                     ]
                                                                                 }
                                                                             }
@@ -910,17 +932,47 @@
                                                             },
                                                             "else": {
                                                                 "actions": {
+                                                                    "Empty_Threat_Indicators_List_2": {
+                                                                        "inputs": {
+                                                                            "name": "ThreatIndicators",
+                                                                            "value": []
+                                                                        },
+                                                                        "runAfter": {
+                                                                            "GIBIndicatorProcessor_2": [
+                                                                                "Succeeded"
+                                                                            ]
+                                                                        },
+                                                                        "type": "SetVariable"
+                                                                    },
+                                                                    "GIBIndicatorProcessor_2": {
+                                                                        "inputs": {
+                                                                            "batchName": "GIBIndicatorsBatch",
+                                                                            "content": "@variables('ThreatIndicators')",
+                                                                            "host": {
+                                                                                "triggerName": "Batch_messages",
+                                                                                "workflow": {
+                                                                                    "id": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Logic/workflows/', 'GIBIndicatorProcessor')]"
+                                                                                }
+                                                                            }
+                                                                        },
+                                                                        "runAfter": {
+                                                                            "IF_SHA256": [
+                                                                                "Succeeded"
+                                                                            ]
+                                                                        },
+                                                                        "type": "SendToBatch"
+                                                                    },
                                                                     "IF_MD5": {
                                                                         "actions": {
                                                                             "ADD_MD5_Indicator": {
                                                                                 "inputs": {
                                                                                     "name": "ThreatIndicators",
                                                                                     "value": {
-                                                                                        "action": "unknown",
+                                                                                        "action": "@parameters('Group-IB APT Threat Indicator Hashes Action')",
                                                                                         "activityGroupNames": [
                                                                                             "@items('For_each')?['threatActor']?['name']"
                                                                                         ],
-                                                                                        "confidence": "@{items('For_each')?['evaluation']?['credibility']}",
+                                                                                        "confidence": "@int(items('For_each')?['evaluation']?['credibility'])",
                                                                                         "description": "Group-IB APT Threat Indicator",
                                                                                         "expirationDateTime": "@addDays(items('For_each')?['createdAt'], 100)",
                                                                                         "fileHashType": "md5",
@@ -974,11 +1026,11 @@
                                                                                 "inputs": {
                                                                                     "name": "ThreatIndicators",
                                                                                     "value": {
-                                                                                        "action": "unknown",
+                                                                                        "action": "@parameters('Group-IB APT Threat Indicator Hashes Action')",
                                                                                         "activityGroupNames": [
                                                                                             "@items('For_each')?['threatActor']?['name']"
                                                                                         ],
-                                                                                        "confidence": "@items('For_each')?['evaluation']?['credibility']",
+                                                                                        "confidence": "@int(items('For_each')?['evaluation']?['credibility'])",
                                                                                         "description": "Group-IB APT Threat Indicator",
                                                                                         "expirationDateTime": "@addDays(items('For_each')?['createdAt'], 100)",
                                                                                         "fileHashType": "sha256",
@@ -1032,11 +1084,11 @@
                                                                                 "inputs": {
                                                                                     "name": "ThreatIndicators",
                                                                                     "value": {
-                                                                                        "action": "unknown",
+                                                                                        "action": "@parameters('Group-IB APT Threat Indicator Hashes Action')",
                                                                                         "activityGroupNames": [
                                                                                             "@items('For_each')?['threatActor']?['name']"
                                                                                         ],
-                                                                                        "confidence": "@items('For_each')?['evaluation']?['credibility']",
+                                                                                        "confidence": "@int(items('For_each')?['evaluation']?['credibility'])",
                                                                                         "description": "Group-IB APT Threat Indicator",
                                                                                         "expirationDateTime": "@addDays(items('For_each')?['createdAt'], 100)",
                                                                                         "fileHashType": "sha1",
@@ -1108,24 +1160,6 @@
                                                 ]
                                             },
                                             "type": "Foreach"
-                                        },
-                                        "GIBIndicatorProcessor": {
-                                            "inputs": {
-                                                "batchName": "GIBIndicatorsBatch",
-                                                "content": "@variables('ThreatIndicators')",
-                                                "host": {
-                                                    "triggerName": "Batch_messages",
-                                                    "workflow": {
-                                                        "id": "/subscriptions/6a021fde-5198-441e-9190-9d634e1f4a84/resourceGroups/Group-IB-WS/providers/Microsoft.Logic/workflows/GIBIndicatorProcessor"
-                                                    }
-                                                }
-                                            },
-                                            "runAfter": {
-                                                "For_each": [
-                                                    "Succeeded"
-                                                ]
-                                            },
-                                            "type": "SendToBatch"
                                         },
                                         "Save_only_as_Indicators": {
                                             "actions": {},
@@ -1257,8 +1291,24 @@
                             "defaultValue": "https://bt.group-ib.com/api/v2/",
                             "type": "String"
                         },
+                        "GIB APT Threat Indicator IP Action": {
+                            "defaultValue": "unknown",
+                            "type": "String"
+                        },
                         "GIB Username": {
-                            "defaultValue": "XXXX@domain.com",
+                            "defaultValue": "<xxxx@domain.com>",
+                            "type": "String"
+                        },
+                        "Group-IB APT Threat Indicator Domain Action": {
+                            "defaultValue": "unknown",
+                            "type": "String"
+                        },
+                        "Group-IB APT Threat Indicator Hashes Action": {
+                            "defaultValue": "unknown",
+                            "type": "String"
+                        },
+                        "Group-IB APT Threat Indicator URL Action": {
+                            "defaultValue": "unknown",
                             "type": "String"
                         },
                         "Save only indicators": {
@@ -1280,12 +1330,12 @@
                     "$connections": {
                         "value": {
                             "azureloganalyticsdatacollector": {
-                                "connectionId": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', 'Group-IB-WS', '/providers/Microsoft.Web/connections/')]",
+                                "connectionId": "[resourceId('Microsoft.Web/connections', variables('AzureLogAnalyticsDataCollectorConnectionName'))]",
                                 "connectionName": "[variables('AzureLogAnalyticsDataCollectorConnectionName')]",
                                 "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/azureloganalyticsdatacollector')]"
                             },
                             "azuremonitorlogs": {
-                                "connectionId": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', 'Group-IB-WS', '/providers/Microsoft.Web/connections/')]",
+                                "connectionId": "[resourceId('Microsoft.Web/connections', variables('azuremonitorlogsConnectionName'))]",
                                 "connectionName": "[variables('azuremonitorlogsConnectionName')]",
                                 "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/azuremonitorlogs')]"
                             }

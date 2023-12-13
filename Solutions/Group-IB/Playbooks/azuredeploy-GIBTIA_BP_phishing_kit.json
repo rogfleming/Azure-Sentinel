@@ -38,7 +38,7 @@
                 "displayName": "[parameters('UserName')]",
                 "customParameterValues": {},
                 "api": {
-                    "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/microsoftgraphsecurity')]"
+                    "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/azureloganalyticsdatacollector')]"
                 }
             }
         },
@@ -47,6 +47,10 @@
             "apiVersion": "2017-07-01",
             "name": "[parameters('PlaybookName')]",
             "location": "[resourceGroup().location]",
+                       "dependsOn": [
+                "[resourceId('Microsoft.Web/connections', variables('AzureLogAnalyticsDataCollectorConnectionName'))]",
+                "[resourceId('Microsoft.Web/connections', variables('azuremonitorlogsConnectionName'))]"
+            ],
             "properties": {
                 "state": "Disabled",
                 "definition": {
@@ -75,7 +79,7 @@
                                             "method": "GET",
                                             "queries": {
                                                 "collection": "@parameters('Collection Name')",
-                                                "date": "@{addDays(utcNow(), -3, 'yyyy-MM-dd')}"
+                                                "date": "@{addDays(utcNow(), -1, 'yyyy-MM-dd')}"
                                             },
                                             "uri": "@{parameters('GIB API URL ')}sequence_list"
                                         },
@@ -171,10 +175,10 @@
                                 "method": "post",
                                 "path": "/queryData",
                                 "queries": {
-                                    "resourcegroups": "Group-IB-WS",
-                                    "resourcename": "Group-IB",
-                                    "resourcetype": "Log Analytics Workspace",
-                                    "subscriptions": "6a021fde-5198-441e-9190-9d634e1f4a84",
+                                    "subscriptions": "[subscription().subscriptionId]",
+									"resourcegroups": "[resourceGroup().name]",
+									"resourcetype": "Log Analytics Workspace",
+									"resourcename": "",
                                     "timerange": "Last 7 days"
                                 }
                             },
@@ -191,7 +195,7 @@
                                     {
                                         "name": "GIB API Key",
                                         "type": "string",
-                                        "value": "XXXXXX"
+                                        "value": "<GIB API Key>"
                                     }
                                 ]
                             },
@@ -452,9 +456,9 @@
                                                             "inputs": {
                                                                 "name": "emails",
                                                                 "value": {
-                                                                    "action": "unknown",
+                                                                    "action": "@parameters('GIB Phishing Kit Email Action')",
                                                                     "activityGroupNames": [],
-                                                                    "confidence": "@items('For_each')?['evaluation']?['credibility']",
+                                                                    "confidence": "@int(items('For_each')?['evaluation']?['credibility'])",
                                                                     "description": "GIB Phishing Kit Email",
                                                                     "emailSenderAddress": "@items('For_each_2')",
                                                                     "expirationDateTime": "@addDays(items('For_each')?['dateDetected'], items('For_each')?['evaluation']?['ttl'])",
@@ -493,7 +497,7 @@
                                                 "host": {
                                                     "triggerName": "Batch_messages",
                                                     "workflow": {
-                                                        "id": "/subscriptions/6a021fde-5198-441e-9190-9d634e1f4a84/resourceGroups/Group-IB-WS/providers/Microsoft.Logic/workflows/GIBIndicatorProcessor"
+                                                        "id": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Logic/workflows/', 'GIBIndicatorProcessor')]"
                                                     }
                                                 }
                                             },
@@ -631,11 +635,15 @@
                             "type": "String"
                         },
                         "GIB API URL ": {
-                            "defaultValue": "https://bt-demo.group-ib.com/api/v2/",
+                            "defaultValue": "https://bt.group-ib.com/api/v2/",
+                            "type": "String"
+                        },
+                        "GIB Phishing Kit Email Action": {
+                            "defaultValue": "unknown",
                             "type": "String"
                         },
                         "GIB Username": {
-                            "defaultValue": "xxxx@domain.com",
+                            "defaultValue": "<xxxx@domain.com>",
                             "type": "String"
                         },
                         "Save only indicators": {
@@ -657,12 +665,12 @@
                     "$connections": {
                         "value": {
                             "azureloganalyticsdatacollector": {
-                                "connectionId": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', 'Group-IB-WS', '/providers/Microsoft.Web/connections/')]",
+                                "connectionId": "[resourceId('Microsoft.Web/connections', variables('AzureLogAnalyticsDataCollectorConnectionName'))]",
                                 "connectionName": "[variables('AzureLogAnalyticsDataCollectorConnectionName')]",
                                 "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/azureloganalyticsdatacollector')]"
                             },
                             "azuremonitorlogs": {
-                                "connectionId": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', 'Group-IB-WS', '/providers/Microsoft.Web/connections/')]",
+                                "connectionId": "[resourceId('Microsoft.Web/connections', variables('azuremonitorlogsConnectionName'))]",
                                 "connectionName": "[variables('azuremonitorlogsConnectionName')]",
                                 "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/azuremonitorlogs')]"
                             }

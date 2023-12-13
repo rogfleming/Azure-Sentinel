@@ -38,7 +38,7 @@
                 "displayName": "[parameters('UserName')]",
                 "customParameterValues": {},
                 "api": {
-                    "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/microsoftgraphsecurity')]"
+                    "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/azureloganalyticsdatacollector')]"
                 }
             }
         },
@@ -47,6 +47,10 @@
             "apiVersion": "2017-07-01",
             "name": "[parameters('PlaybookName')]",
             "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/connections', variables('AzureLogAnalyticsDataCollectorConnectionName'))]",
+                "[resourceId('Microsoft.Web/connections', variables('azuremonitorlogsConnectionName'))]"
+            ],
             "properties": {
                 "state": "Disabled",
                 "definition": {
@@ -171,10 +175,10 @@
                                 "method": "post",
                                 "path": "/queryData",
                                 "queries": {
-                                    "resourcegroups": "Group-IB-WS",
-                                    "resourcename": "Group-IB",
+                                    "subscriptions": "[subscription().subscriptionId]",
+                                    "resourcegroups": "[resourceGroup().name]",
                                     "resourcetype": "Log Analytics Workspace",
-                                    "subscriptions": "6a021fde-5198-441e-9190-9d634e1f4a84",
+                                    "resourcename": "",
                                     "timerange": "Last 7 days"
                                 }
                             },
@@ -187,7 +191,7 @@
                         },
                         "Init_TechTable": {
                             "inputs": {
-                                "body": "{\"collection_name\" : \"test/collection\",\n \"seqUpdate\": 0\n}",
+                                "body": "{\"collection_name\" : \"@{parameters('Collection Name')}\",\n \"seqUpdate\": 0\n}",
                                 "headers": {
                                     "Log-Type": "GIBTechTable"
                                 },
@@ -200,7 +204,7 @@
                                 "path": "/api/logs"
                             },
                             "runAfter": {
-                                "Inititalize_API_Key": [
+                                "Initialize_seqUpdate": [
                                     "Succeeded"
                                 ]
                             },
@@ -215,7 +219,11 @@
                                     }
                                 ]
                             },
-                            "runAfter": {},
+                            "runAfter": {
+                                "Inititalize_API_Key": [
+                                    "Succeeded"
+                                ]
+                            },
                             "type": "InitializeVariable"
                         },
                         "Initialize_variable": {
@@ -241,15 +249,11 @@
                                     {
                                         "name": "GIB API Key",
                                         "type": "string",
-                                        "value": "XXXXX"
+                                        "value": "<GIB API Key>"
                                     }
                                 ]
                             },
-                            "runAfter": {
-                                "Initialize_seqUpdate": [
-                                    "Succeeded"
-                                ]
-                            },
+                            "runAfter": {},
                             "type": "InitializeVariable"
                         },
                         "Until": {
@@ -423,7 +427,7 @@
                                                 "host": {
                                                     "triggerName": "Batch_messages",
                                                     "workflow": {
-                                                        "id": "/subscriptions/6a021fde-5198-441e-9190-9d634e1f4a84/resourceGroups/Group-IB-WS/providers/Microsoft.Logic/workflows/GIBIndicatorProcessor"
+                                                        "id": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Logic/workflows/', 'GIBIndicatorProcessor')]"
                                                     }
                                                 }
                                             },
@@ -474,7 +478,7 @@
                                             "inputs": {
                                                 "from": "@body('Get_items_from_response')?['items']",
                                                 "select": {
-                                                    "action": "unknown",
+                                                    "action": "@parameters('GIB Tor Node Address Action')",
                                                     "activityGroupNames": [],
                                                     "confidence": "@int(item()?['evaluation']?['credibility'])",
                                                     "description": "GIB Tor Node Address",
@@ -482,7 +486,7 @@
                                                     "externalId": "@item()?['id']",
                                                     "killChain": [],
                                                     "malwareFamilyNames": [],
-                                                    "networkIP": "@item()?['ipv4']?['ip']",
+                                                    "networkIPv4": "@item()?['ipv4']?['ip']",
                                                     "severity": 1,
                                                     "tags": [
                                                         "tor-node"
@@ -593,8 +597,12 @@
                             "defaultValue": "https://bt.group-ib.com/api/v2/",
                             "type": "String"
                         },
+                        "GIB Tor Node Address Action": {
+                            "defaultValue": "unknown",
+                            "type": "String"
+                        },
                         "GIB Username": {
-                            "defaultValue": "xxxx@domain.com",
+                            "defaultValue": "<xxxx@domain.com>",
                             "type": "String"
                         },
                         "Save only indicators": {
@@ -616,12 +624,12 @@
                     "$connections": {
                         "value": {
                             "azureloganalyticsdatacollector": {
-                                "connectionId": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', 'Group-IB-WS', '/providers/Microsoft.Web/connections/')]",
+                                "connectionId": "[resourceId('Microsoft.Web/connections', variables('AzureLogAnalyticsDataCollectorConnectionName'))]",
                                 "connectionName": "[variables('AzureLogAnalyticsDataCollectorConnectionName')]",
                                 "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/azureloganalyticsdatacollector')]"
                             },
                             "azuremonitorlogs": {
-                                "connectionId": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', 'Group-IB-WS', '/providers/Microsoft.Web/connections/')]",
+                                "connectionId": "[resourceId('Microsoft.Web/connections', variables('azuremonitorlogsConnectionName'))]",
                                 "connectionName": "[variables('azuremonitorlogsConnectionName')]",
                                 "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/azuremonitorlogs')]"
                             }

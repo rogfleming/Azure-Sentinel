@@ -3,30 +3,31 @@ name: Corelight - C2 DGA Detected Via Repetitive Failures
 description: |
   'Detects large amounts of DNS resolution failures.'
 severity: Medium
+status: Available
 requiredDataConnectors:
   - connectorId: Corelight
     dataTypes:
-      - Corelight
+      - Corelight_v2_dns
+      - Corelight_v2_dns_red
+      - corelight_dns
+      - corelight_dns_red
 queryFrequency: 1h
 queryPeriod: 1h
 triggerOperator: gt
 triggerThreshold: 0
 tactics:
   - CommandAndControl
-relevantTechniques:
-  - T1094
-  - T1043
 query: |
-  let threashold = 25;
-  Corelight
-  | where EventType =~ 'dns'
-  | where DnsResponseCodeName in~ ('NXDOMAIN', 'SERVFAIL')
-  | summarize count() by DnsQueryName, SrcIpAddr, bin(TimeGenerated, 5m)
-  | where count_ > threashold
-  | extend IPCustomEntity = SrcIpAddr
+  let threshold = 25;
+  union corelight_dns, corelight_dns_red
+  // rcodes: SERVFAIL=2, NXDOMAIN=3
+  | where rcode in (2, 3)
+  | summarize count() by query, id_orig_h, bin(TimeGenerated, 5m)
+  | where count_ > threshold
 entityMappings:
   - entityType: IP
     fieldMappings:
       - identifier: Address
-        columnName: IPCustomEntity
-
+        columnName: id_orig_h
+version: 2.1.0
+kind: Scheduled

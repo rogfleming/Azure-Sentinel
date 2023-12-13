@@ -3,10 +3,12 @@ name: Corelight - Multiple files sent over HTTP with abnormal requests
 description: |
   'Detects sources sending multiple compressed files greater than 10MBs sent over HTTP in a short amount of time.'
 severity: Medium
+status: Available
 requiredDataConnectors:
   - connectorId: Corelight
     dataTypes:
-      - Corelight
+      - Corelight_v2_http
+      - corelight_http
 queryFrequency: 1h
 queryPeriod: 1h
 triggerOperator: gt
@@ -14,21 +16,20 @@ triggerThreshold: 0
 tactics:
   - Exfiltration
 relevantTechniques:
-  - T1560
   - T1030
 query: |
-  let threashold = 25;
-  let fl_size_threashold = 10000000;
-  Corelight
-  | where EventType =~ 'http'
-  | where HttpRequestMethod in~ ('POST', 'PUT')
-  | where isempty(HttpReferrerOriginal)
-  | where tolong(HttpRequestBodyBytes) > fl_size_threashold
-  | summarize count() by UrlOriginal, SrcIpAddr, bin(TimeGenerated, 15m)
-  | where count_ > threashold
-  | extend IPCustomEntity = SrcIpAddr
+  let threshold = 25;
+  let fl_size_threshold = 10000000;
+  corelight_http
+  | where method in~ ('POST', 'PUT')
+  | where isempty(referrer)
+  | where tolong(request_body_len) > fl_size_threshold
+  | summarize count() by uri, id_orig_h, bin(TimeGenerated, 15m)
+  | where count_ > threshold
 entityMappings:
   - entityType: IP
     fieldMappings:
       - identifier: Address
-        columnName: IPCustomEntity
+        columnName: id_orig_h
+version: 2.1.0
+kind: Scheduled

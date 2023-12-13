@@ -38,7 +38,7 @@
                 "displayName": "[parameters('UserName')]",
                 "customParameterValues": {},
                 "api": {
-                    "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/microsoftgraphsecurity')]"
+                    "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/azureloganalyticsdatacollector')]"
                 }
             }
         },
@@ -47,6 +47,10 @@
             "apiVersion": "2017-07-01",
             "name": "[parameters('PlaybookName')]",
             "location": "[resourceGroup().location]",
+             "dependsOn": [
+                "[resourceId('Microsoft.Web/connections', variables('AzureLogAnalyticsDataCollectorConnectionName'))]",
+                "[resourceId('Microsoft.Web/connections', variables('azuremonitorlogsConnectionName'))]"
+            ],
             "properties": {
                 "state": "Disabled",
                 "definition": {
@@ -75,7 +79,7 @@
                                             "method": "GET",
                                             "queries": {
                                                 "collection": "@parameters('Collection Name')",
-                                                "date": "@{addDays(utcNow(), -3, 'yyyy-MM-dd')}"
+                                                "date": "@{addDays(utcNow(), -1, 'yyyy-MM-dd')}"
                                             },
                                             "uri": "@{parameters('GIB API URL ')}sequence_list"
                                         },
@@ -171,10 +175,10 @@
                                 "method": "post",
                                 "path": "/queryData",
                                 "queries": {
-                                    "resourcegroups": "Group-IB-WS",
-                                    "resourcename": "Group-IB",
-                                    "resourcetype": "Log Analytics Workspace",
-                                    "subscriptions": "6a021fde-5198-441e-9190-9d634e1f4a84",
+                                    "subscriptions": "[subscription().subscriptionId]",
+									"resourcegroups": "[resourceGroup().name]",
+									"resourcetype": "Log Analytics Workspace",
+									"resourcename": "",
                                     "timerange": "Last 7 days"
                                 }
                             },
@@ -187,7 +191,7 @@
                         },
                         "Init_TechTable": {
                             "inputs": {
-                                "body": "{\n\"collection_name\" : \"test/collection\",\n\"seqUpdate\" :  0 \n}",
+                                "body": "{\n\"collection_name\" : \"@{parameters('Collection Name')}\",\n\"seqUpdate\" :  0 \n}",
                                 "headers": {
                                     "Log-Type": "GIBTechTable"
                                 },
@@ -212,7 +216,7 @@
                                     {
                                         "name": "GIB API Key",
                                         "type": "string",
-                                        "value": "XXXXXXX"
+                                        "value": "<GIB API Key>"
                                     }
                                 ]
                             },
@@ -585,7 +589,7 @@
                                         "Filter_Empty_URLs": {
                                             "inputs": {
                                                 "from": "@body('Select_URL')",
-                                                "where": "@not(equals(item()?['url'], null))"
+                                                "where": "@not(equals(item()['url'], null))"
                                             },
                                             "runAfter": {
                                                 "Select_URL": [
@@ -601,7 +605,7 @@
                                                 "host": {
                                                     "triggerName": "Batch_messages",
                                                     "workflow": {
-                                                        "id": "/subscriptions/6a021fde-5198-441e-9190-9d634e1f4a84/resourceGroups/Group-IB-WS/providers/Microsoft.Logic/workflows/GIBIndicatorProcessor"
+                                                        "id": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Logic/workflows/', 'GIBIndicatorProcessor')]"
                                                     }
                                                 }
                                             },
@@ -619,7 +623,7 @@
                                                 "host": {
                                                     "triggerName": "Batch_messages",
                                                     "workflow": {
-                                                        "id": "/subscriptions/6a021fde-5198-441e-9190-9d634e1f4a84/resourceGroups/Group-IB-WS/providers/Microsoft.Logic/workflows/GIBIndicatorProcessor"
+                                                        "id": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Logic/workflows/', 'GIBIndicatorProcessor')]"
                                                     }
                                                 }
                                             },
@@ -637,7 +641,7 @@
                                                 "host": {
                                                     "triggerName": "Batch_messages",
                                                     "workflow": {
-                                                        "id": "/subscriptions/6a021fde-5198-441e-9190-9d634e1f4a84/resourceGroups/Group-IB-WS/providers/Microsoft.Logic/workflows/GIBIndicatorProcessor"
+                                                        "id": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Logic/workflows/', 'GIBIndicatorProcessor')]"
                                                     }
                                                 }
                                             },
@@ -688,11 +692,11 @@
                                             "inputs": {
                                                 "from": "@body('Get_items_from_response')?['items']",
                                                 "select": {
-                                                    "action": "unknown",
+                                                    "action": "@parameters('GIB Compromised IMEI CNC Domain Action')",
                                                     "activityGroupNames": [
                                                         "@{item()?['threatActor']?['name']}"
                                                     ],
-                                                    "confidence": "@{item()?['evaluation']?['credibility']}",
+                                                    "confidence": "@int(item()?['evaluation']?['credibility'])",
                                                     "description": "GIB Compromised IMEI CNC Domain",
                                                     "domainName": "@{item()?['cnc']?['domain']}",
                                                     "expirationDateTime": "@{addDays(item()?['dateDetected'], item()?['evaluation']?['ttl'])}",
@@ -718,11 +722,11 @@
                                             "inputs": {
                                                 "from": "@body('Get_items_from_response')?['items']",
                                                 "select": {
-                                                    "action": "unknown",
+                                                    "action": "@parameters('GIB Compromised IMEI CNC IP Action')",
                                                     "activityGroupNames": [
                                                         "@{item()?['threatActor']?['name']}"
                                                     ],
-                                                    "confidence": "@{item()?['evaluation']?['credibility']}",
+                                                    "confidence": "@int(item()?['evaluation']?['credibility'])",
                                                     "description": "GIB Compromised IMEI CNC IP",
                                                     "expirationDateTime": "@{addDays(item()?['dateDetected'], item()?['evaluation']?['ttl'])}",
                                                     "killChain": [],
@@ -748,11 +752,11 @@
                                             "inputs": {
                                                 "from": "@body('Get_items_from_response')?['items']",
                                                 "select": {
-                                                    "action": "unknown",
+                                                    "action": "@parameters('GIB Compromised IMEI CNC URL Action')",
                                                     "activityGroupNames": [
                                                         "@{item()?['threatActor']?['name']}"
                                                     ],
-                                                    "confidence": "@{item()?['evaluation']?['credibility']}",
+                                                    "confidence": "@int(item()?['evaluation']?['credibility'])",
                                                     "description": "GIB Compromised IMEI CNC URL",
                                                     "expirationDateTime": "@{addDays(item()?['dateDetected'], item()?['evaluation']?['ttl'])}",
                                                     "killChain": [],
@@ -868,8 +872,20 @@
                             "defaultValue": "https://bt.group-ib.com/api/v2/",
                             "type": "String"
                         },
+                        "GIB Compromised IMEI CNC Domain Action": {
+                            "defaultValue": "unknown",
+                            "type": "String"
+                        },
+                        "GIB Compromised IMEI CNC IP Action": {
+                            "defaultValue": "unknown",
+                            "type": "String"
+                        },
+                        "GIB Compromised IMEI CNC URL Action": {
+                            "defaultValue": "unknown",
+                            "type": "String"
+                        },
                         "GIB Username": {
-                            "defaultValue": "xxxx@domain.com",
+                            "defaultValue": "<xxxx@domain.com>",
                             "type": "String"
                         },
                         "Save only indicators": {
@@ -891,12 +907,12 @@
                     "$connections": {
                         "value": {
                             "azureloganalyticsdatacollector": {
-                                "connectionId": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', 'Group-IB-WS', '/providers/Microsoft.Web/connections/')]",
+                                "connectionId": "[resourceId('Microsoft.Web/connections', variables('AzureLogAnalyticsDataCollectorConnectionName'))]",
                                 "connectionName": "[variables('AzureLogAnalyticsDataCollectorConnectionName')]",
                                 "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/azureloganalyticsdatacollector')]"
                             },
                             "azuremonitorlogs": {
-                                "connectionId": "[concat('/subscriptions/', subscription().subscriptionId, '/resourceGroups/', 'Group-IB-WS', '/providers/Microsoft.Web/connections/')]",
+                                "connectionId": "[resourceId('Microsoft.Web/connections', variables('azuremonitorlogsConnectionName'))]",
                                 "connectionName": "[variables('azuremonitorlogsConnectionName')]",
                                 "id": "[concat('/subscriptions/', subscription().subscriptionId, '/providers/Microsoft.Web/locations/', resourceGroup().location, '/managedApis/azuremonitorlogs')]"
                             }
